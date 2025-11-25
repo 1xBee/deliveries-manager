@@ -13,6 +13,6 @@ export const copyToClipboard = async (text) => {
 
 export const formatRouteForClipboard = (deliveries) => {
   return deliveries
-    .map(d => `[${d.id}]: ${d.address}`)
+    .map(d => `${d.id}: ${d.address}`)
     .join('\n');
 };

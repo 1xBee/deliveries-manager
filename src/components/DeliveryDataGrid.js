@@ -20,8 +20,8 @@ function DeliveryDataGrid({
       field: 'id', 
       headerName: 'ID', 
       width: 70,
-      type: 'number',
-      editable: false
+      editable: false,
+      valueFormatter: (params) => params.value
     },
     { 
       field: 'customer', 

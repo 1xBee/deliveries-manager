@@ -12,7 +12,7 @@ import RouteOptimizerDialog from './components/RouteOptimizerDialog';
 import { useDeliveryData } from './hooks/useDeliveryData';
 import { TABS } from './constants/tabs';
 import { copyToClipboard, formatRouteForClipboard } from './services/clipboardService';
-import { parseOptimizedRoute } from './services/routeParserService';
+import { useRouteOptimizer } from './hooks/useRouteOptimizer';
 
 function App() {
   const [currentTab, setCurrentTab] = useState(0);
@@ -31,6 +31,12 @@ function App() {
     handleApplySortOrder
   } = useDeliveryData();
 
+  const {
+    routeTexts,
+    updateRouteText,
+    applyOptimizedRoute
+  } = useRouteOptimizer(deliveries, handleApplySortOrder);
+
   const currentTabId = TABS[currentTab].id;
   const currentTabData = deliveries[currentTabId] || [];
   const currentSelected = selectedIds[currentTabId] || [];
@@ -38,11 +44,6 @@ function App() {
   const handleCopyRoute = async () => {
     const formatted = formatRouteForClipboard(currentTabData);
     return await copyToClipboard(formatted);
-  };
-
-  const handleApplyOptimizedRoute = (routeText) => {
-    const sortOrders = parseOptimizedRoute(routeText);
-    handleApplySortOrder(currentTabId, sortOrders);
   };
 
   return (
@@ -96,7 +97,11 @@ function App() {
       <RouteOptimizerDialog
         open={routeOptimizerOpen}
         onClose={() => setRouteOptimizerOpen(false)}
-        onApply={handleApplyOptimizedRoute}
+        currentTabId={currentTabId}
+        routeText={routeTexts[currentTabId]}
+        onRouteTextChange={(text) => updateRouteText(currentTabId, text)}
+        onApply={(text) => applyOptimizedRoute(currentTabId, text)}
+        currentDeliveries={currentTabData}
       />
     </Box>
   );

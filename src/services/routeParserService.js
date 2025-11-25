@@ -7,7 +7,7 @@ export const parseOptimizedRoute = (text) => {
   let order = 1;
 
   lines.forEach(line => {
-    const match = line.match(/^\[(\d+)\]:/);
+    const match = line.match(/^(\d+):/);
     if (match) {
       const id = parseInt(match[1], 10);
       sortOrders[id] = order;
@@ -16,6 +16,17 @@ export const parseOptimizedRoute = (text) => {
   });
 
   return sortOrders;
+};
+
+export const calculateMatchStats = (deliveries, sortOrders) => {
+  const totalInList = Object.keys(sortOrders).length;
+  const matchedCount = deliveries.filter(d => sortOrders[d.id] !== undefined).length;
+  
+  return {
+    totalInList,
+    matchedCount,
+    unmatchedCount: totalInList - matchedCount
+  };
 };
 
 export const applySortOrder = (deliveries, sortOrders) => {
