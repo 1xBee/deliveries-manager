@@ -34,21 +34,35 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 // Handle data extraction request from popup
 async function handleDataExtraction(sendResponse) {
   try {
-    // Find the deliveries tab
+    // Get the active tab
     const tabs = await chrome.tabs.query({ 
-      url: 'https://cm.chasunamallny.com/Deliveries*' 
+      active: true, 
+      currentWindow: true 
     });
 
     if (tabs.length === 0) {
       sendResponse({ 
         success: false, 
-        error: 'No deliveries page found. Please open https://cm.chasunamallny.com/Deliveries first.' 
+        error: 'No active tab found.' 
       });
       return;
     }
 
-    // If multiple tabs, use the first one
     const targetTab = tabs[0];
+
+// Check if the active tab is the deliveries page and ensure no sub-paths exist
+    try {
+        const url = new URL(targetTab.url);
+        if (url.origin !== 'https://cm.chasunamallny.com' || url.pathname !== '/Deliveries') {
+            throw new Error('Path mismatch');
+        }
+    } catch (e) {
+        sendResponse({ 
+            success: false, 
+            error: 'Please navigate to the deliveries page (https://cm.chasunamallny.com/Deliveries) and try again.' 
+        });
+        return;
+    }
 
     // Inject the content script if not already injected
     await chrome.scripting.executeScript({
