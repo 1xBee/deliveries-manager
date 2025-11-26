@@ -20,13 +20,6 @@
     "default_icon": {
     }
   },
-  "content_scripts": [
-    {
-      "matches": ["https://cm.chasunamallny.com/Deliveries"],
-      "js": ["content.js"],
-      "run_at": "document_idle"
-    }
-  ],
   "web_accessible_resources": [
     {
       "resources": ["ui.html"],

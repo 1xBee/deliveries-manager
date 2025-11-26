@@ -23,6 +23,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     getCachedData(sendResponse);
     return true;
   }
+
+  if (message.type === 'PRINT_ROUTE') {
+    // Popup requested print route
+    handlePrintRoute(message.data, sendResponse);
+    return true;
+  }
 });
 
 // Handle data extraction request from popup
@@ -102,6 +108,72 @@ async function getCachedData(sendResponse) {
     });
   } catch (error) {
     console.error('Error getting cached data:', error);
+    sendResponse({ success: false, error: error.message });
+  }
+}
+
+// Handle print route request
+async function handlePrintRoute(data, sendResponse) {
+  try {
+    const { tabName, deliveryIds } = data;
+
+    if (!deliveryIds || deliveryIds.length === 0) {
+      sendResponse({ 
+        success: false, 
+        error: 'No deliveries to print' 
+      });
+      return;
+    }
+
+    // Open the cm.chasunamallny.com page in a new window
+    const printWindow = await chrome.windows.create({
+      url: 'https://cm.chasunamallny.com/',
+      type: 'popup',
+      width: 800,
+      height: 600
+    });
+
+    // Wait for the tab to be ready, then inject the print script
+    const checkTab = setInterval(async () => {
+      const tabs = await chrome.tabs.query({ windowId: printWindow.id });
+      if (tabs.length > 0) {
+        const tab = tabs[0];
+        if (tab.status === 'complete') {
+          clearInterval(checkTab);
+          
+          try {
+            // Inject the print content script
+            await chrome.scripting.executeScript({
+              target: { tabId: tab.id },
+              files: ['print-content.js']
+            });
+
+            // Wait a bit for script to load
+            setTimeout(() => {
+              // Send print data to the content script
+              chrome.tabs.sendMessage(tab.id, {
+                type: 'INIT_PRINT',
+                data: {
+                  tabName: tabName,
+                  deliveryIds: deliveryIds
+                }
+              });
+            }, 100);
+
+          } catch (error) {
+            console.error('Error injecting print script:', error);
+          }
+        }
+      }
+    }, 100);
+
+    // Clear interval after 10 seconds to prevent infinite loop
+    setTimeout(() => clearInterval(checkTab), 10000);
+
+    sendResponse({ success: true });
+
+  } catch (error) {
+    console.error('Error in handlePrintRoute:', error);
     sendResponse({ success: false, error: error.message });
   }
 }

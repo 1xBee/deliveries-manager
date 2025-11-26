@@ -36,7 +36,8 @@ const extensionFiles = [
   'extension/background.js',
   'extension/content.js',
   'extension/popup.html',
-  'extension/popup.js'
+  'extension/popup.js',
+  'extension/print-content.js'
 ];
 
 extensionFiles.forEach(file => {

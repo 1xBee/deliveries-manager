@@ -66,12 +66,6 @@ function BulkActionsBar({ selectedCount, selectedIds, currentTabId, onDelete, on
         }
       >
         {selectedCount} item{selectedCount !== 1 ? 's' : ''} selected
-        {!isEnabled && (
-          // Text to guide the user when no items are selected
-          <span style={{ marginLeft: '16px', color: 'rgba(0, 0, 0, 0.5)', fontWeight: 'bold' }}>
-            (Select items to enable actions)
-          </span>
-        )}
       </Alert>
 
       <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} maxWidth="sm" fullWidth>

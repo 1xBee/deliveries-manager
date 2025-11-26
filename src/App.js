@@ -28,7 +28,8 @@ function App() {
     handleAddCustom,
     handleBulkUpdateAddress,
     handleUpdateRow,
-    handleApplySortOrder
+    handleApplySortOrder,
+    setActiveTab  // ← NEW: For print feature to track active tab
   } = useDeliveryData();
 
   const {
@@ -40,6 +41,13 @@ function App() {
   const currentTabId = TABS[currentTab].id;
   const currentTabData = deliveries[currentTabId] || [];
   const currentSelected = selectedIds[currentTabId] || [];
+
+  // ← NEW: Update activeTab when user switches tabs
+  const handleTabChange = (newTabIndex) => {
+    setCurrentTab(newTabIndex);
+    const newTabId = TABS[newTabIndex].id;
+    setActiveTab(newTabId);  // Notify the hook which tab is active for print
+  };
 
   const handleCopyRoute = async () => {
     const formatted = formatRouteForClipboard(currentTabData);
@@ -56,7 +64,7 @@ function App() {
       
       <TabsNavigation
         currentTab={currentTab}
-        onTabChange={setCurrentTab}
+        onTabChange={handleTabChange}  // ← CHANGED: Use our new handler
         deliveries={deliveries}
       />
 

@@ -1,7 +1,7 @@
 // ============================================
 // FILE: src/hooks/useDeliveryData.js
 // ============================================
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
 const EMPTY_DATA = {
   'ky': [],
@@ -18,34 +18,80 @@ export function useDeliveryData() {
   });
   const [isLoading, setIsLoading] = useState(true);
   const [dataSource, setDataSource] = useState('none'); // 'none', 'cached', 'live'
+  const [activeTab, setActiveTab] = useState('ky');
+  
+  // Use ref to track if we already requested cached data
+  const hasRequestedCache = useRef(false);
 
-  // Listen for Chrome extension messages
+  // Listen for Chrome extension messages - ONLY ONCE on mount
   useEffect(() => {
     // Check if we're in a Chrome extension context
     if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.id) {
       
-      // Request cached data on mount
-      chrome.runtime.sendMessage(
-        { type: 'GET_CACHED_DATA' },
-        (response) => {
-          setIsLoading(false);
-          if (response && response.success && response.data) {
-            setDeliveries(response.data);
-            setDataSource('cached');
-            console.log('Loaded cached data:', response.data);
-          } else {
-            console.log('No cached data found');
+      // Request cached data on mount - ONLY ONCE
+      if (!hasRequestedCache.current) {
+        hasRequestedCache.current = true;
+        chrome.runtime.sendMessage(
+          { type: 'GET_CACHED_DATA' },
+          (response) => {
+            setIsLoading(false);
+            if (response && response.success && response.data) {
+              setDeliveries(response.data);
+              setDataSource('cached');
+              console.log('Loaded cached data:', response.data);
+            } else {
+              console.log('No cached data found');
+            }
           }
-        }
-      );
+        );
+      }
 
-      // Listen for live data updates
+      // Listen for messages - needs to access current state
       const messageListener = (message, sender, sendResponse) => {
+        // Live data updates
         if (message.type === 'DATA_UPDATED') {
           console.log('Received live data update:', message.data);
           setDeliveries(message.data);
           setDataSource('live');
           sendResponse({ success: true });
+          return true;
+        }
+
+        // Print route request - needs current deliveries and activeTab
+        if (message.type === 'GET_PRINT_ROUTE') {
+          console.log('Print route requested for tab:', activeTab);
+          
+          // Access deliveries from the current closure
+          setDeliveries(currentDeliveries => {
+            setActiveTab(currentActiveTab => {
+              const currentTabDeliveries = currentDeliveries[currentActiveTab] || [];
+              
+              // Sort by sortOrder (1 is first, then higher numbers, then null/undefined)
+              const sorted = [...currentTabDeliveries].sort((a, b) => {
+                // Handle null/undefined sortOrder
+                if (a.sortOrder == null && b.sortOrder == null) return 0;
+                if (a.sortOrder == null) return 1;  // null goes to end
+                if (b.sortOrder == null) return -1; // null goes to end
+                return a.sortOrder - b.sortOrder;    // ascending order
+              });
+
+              const deliveryIds = sorted.map(d => d.id);
+
+              sendResponse({ 
+                success: true, 
+                data: {
+                  tabName: currentActiveTab,
+                  deliveryIds: deliveryIds
+                }
+              });
+
+              // Return current state unchanged
+              return currentActiveTab;
+            });
+            return currentDeliveries;
+          });
+
+          return true; // Keep channel open for async response
         }
       };
 
@@ -60,7 +106,7 @@ export function useDeliveryData() {
       setIsLoading(false);
       console.log('Not running in Chrome extension context');
     }
-  }, []);
+  }, []); // ← FIXED: Empty dependency array - only run once!
 
   const handleDelete = (ids, tabId) => {
     setDeliveries(prev => ({
@@ -154,6 +200,8 @@ export function useDeliveryData() {
     handleUpdateRow,
     handleApplySortOrder,
     isLoading,
-    dataSource
+    dataSource,
+    activeTab,
+    setActiveTab
   };
 }
