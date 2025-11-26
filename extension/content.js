@@ -99,12 +99,23 @@ async function extractDeliveryData() {
                 id: delivery.id, 
                 orderId: delivery.orderId,
                 location: delivery.location || '',
-                address: delivery.address || '',
-                // Note: assuming city/state/zip are also nested in 'delivery'
+                
+                // Construct the address dynamically, filtering out empty values before joining.
+                address: [
+                    delivery.address || '',
+                    delivery.city1 || '', 
+                    delivery.state1 || '',
+                    delivery.zip1 || ''
+                ].filter(Boolean).join(', '),
+                
+                // Individual address components (kept from original for consistency)
                 city1: delivery.city1 || delivery.cityI || '', 
                 state1: delivery.state1 || delivery.stateI || '',
                 zip1: delivery.zip1 || delivery.zipI || '',
-                customer: item.customers || '', // Assuming customer is flat on the top level 'item'
+                
+                // New customer format: (customerName)orderId
+                customer: `(${item.customers || ''})${delivery.orderId || ''}`,
+                
                 sortOrder: null
             };
             
