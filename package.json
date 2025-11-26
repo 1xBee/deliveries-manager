@@ -16,15 +16,21 @@
     "start": "react-scripts start",
     "build": "react-scripts build",
     "test": "react-scripts test",
-    "eject": "react-scripts eject"
+    "eject": "react-scripts eject",
+    "build:extension": "node build-extension.js"
   },
   "devDependencies": {
+    "archiver": "^7.0.1",
+    "fs-extra": "^11.3.2",
     "react-scripts": "5.0.1"
   },
   "eslintConfig": {
     "extends": [
       "react-app"
-    ]
+    ],
+    "globals": {
+      "chrome": "readonly"
+    }
   },
   "browserslist": {
     "production": [

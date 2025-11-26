@@ -12,26 +12,24 @@ function BulkActionsBar({ selectedCount, selectedIds, currentTabId, onDelete, on
   const [dialogOpen, setDialogOpen] = useState(false);
   const [newAddress, setNewAddress] = useState('');
   const otherTabs = TABS.filter(tab => tab.id !== currentTabId);
+  const isEnabled = selectedCount > 0;
 
   const handleBulkUpdate = () => {
     if (newAddress.trim()) {
-      onBulkUpdateAddress(newAddress);
+      onBulkUpdateAddress(newAddress, selectedIds);
       setNewAddress('');
       setDialogOpen(false);
     }
   };
 
-  if (selectedCount === 0) {
-    return (
-      <Box sx={{ height: 56, mb: 2 }} />
-    );
-  }
-
   return (
     <>
       <Alert
+        // Always use "info" severity (blue)
         severity="info"
-        sx={{ mb: 2 }}
+        sx={{ mb: 2,
+          backgroundColor: '#fff'
+         }}
         action={
           <Stack direction="row" spacing={1}>
             <Button
@@ -39,6 +37,7 @@ function BulkActionsBar({ selectedCount, selectedIds, currentTabId, onDelete, on
               color="inherit"
               startIcon={<EditIcon />}
               onClick={() => setDialogOpen(true)}
+              disabled={!isEnabled} // Actions are disabled when no item is selected
             >
               Change Address
             </Button>
@@ -46,7 +45,8 @@ function BulkActionsBar({ selectedCount, selectedIds, currentTabId, onDelete, on
               size="small"
               color="inherit"
               startIcon={<DeleteIcon />}
-              onClick={onDelete}
+              onClick={() => onDelete(selectedIds)}
+              disabled={!isEnabled} // Actions are disabled when no item is selected
             >
               Delete ({selectedCount})
             </Button>
@@ -56,7 +56,8 @@ function BulkActionsBar({ selectedCount, selectedIds, currentTabId, onDelete, on
                 size="small"
                 color="inherit"
                 startIcon={<SwapHorizIcon />}
-                onClick={() => onMove(tab.id)}
+                onClick={() => onMove(tab.id, selectedIds)}
+                disabled={!isEnabled} // Actions are disabled when no item is selected
               >
                 Move to {tab.label}
               </Button>
@@ -65,6 +66,12 @@ function BulkActionsBar({ selectedCount, selectedIds, currentTabId, onDelete, on
         }
       >
         {selectedCount} item{selectedCount !== 1 ? 's' : ''} selected
+        {!isEnabled && (
+          // Text to guide the user when no items are selected
+          <span style={{ marginLeft: '16px', color: 'rgba(0, 0, 0, 0.5)', fontWeight: 'bold' }}>
+            (Select items to enable actions)
+          </span>
+        )}
       </Alert>
 
       <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} maxWidth="sm" fullWidth>

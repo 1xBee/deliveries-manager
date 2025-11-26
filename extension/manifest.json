@@ -1,0 +1,36 @@
+{
+  "manifest_version": 3,
+  "name": "Delivery Route Optimizer",
+  "version": "1.0.0",
+  "description": "Optimize delivery routes by extracting and organizing delivery data",
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "storage",
+    "tabs"
+  ],
+  "host_permissions": [
+    "https://cm.chasunamallny.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+    }
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://cm.chasunamallny.com/Deliveries"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["ui.html"],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}

@@ -1,16 +1,66 @@
 // ============================================
 // FILE: src/hooks/useDeliveryData.js
 // ============================================
-import { useState } from 'react';
-import { INITIAL_DATA } from '../constants/initialData';
+import { useState, useEffect } from 'react';
+
+const EMPTY_DATA = {
+  'ky': [],
+  'mcm': [],
+  'other': []
+};
 
 export function useDeliveryData() {
-  const [deliveries, setDeliveries] = useState(INITIAL_DATA);
+  const [deliveries, setDeliveries] = useState(EMPTY_DATA);
   const [selectedIds, setSelectedIds] = useState({
-    'orange-county': [],
-    'los-angeles': [],
+    'ky': [],
+    'mcm': [],
     'other': []
   });
+  const [isLoading, setIsLoading] = useState(true);
+  const [dataSource, setDataSource] = useState('none'); // 'none', 'cached', 'live'
+
+  // Listen for Chrome extension messages
+  useEffect(() => {
+    // Check if we're in a Chrome extension context
+    if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.id) {
+      
+      // Request cached data on mount
+      chrome.runtime.sendMessage(
+        { type: 'GET_CACHED_DATA' },
+        (response) => {
+          setIsLoading(false);
+          if (response && response.success && response.data) {
+            setDeliveries(response.data);
+            setDataSource('cached');
+            console.log('Loaded cached data:', response.data);
+          } else {
+            console.log('No cached data found');
+          }
+        }
+      );
+
+      // Listen for live data updates
+      const messageListener = (message, sender, sendResponse) => {
+        if (message.type === 'DATA_UPDATED') {
+          console.log('Received live data update:', message.data);
+          setDeliveries(message.data);
+          setDataSource('live');
+          sendResponse({ success: true });
+        }
+      };
+
+      chrome.runtime.onMessage.addListener(messageListener);
+
+      // Cleanup listener on unmount
+      return () => {
+        chrome.runtime.onMessage.removeListener(messageListener);
+      };
+    } else {
+      // Not in extension context, just stop loading
+      setIsLoading(false);
+      console.log('Not running in Chrome extension context');
+    }
+  }, []);
 
   const handleDelete = (ids, tabId) => {
     setDeliveries(prev => ({
@@ -102,6 +152,8 @@ export function useDeliveryData() {
     handleAddCustom,
     handleBulkUpdateAddress,
     handleUpdateRow,
-    handleApplySortOrder
+    handleApplySortOrder,
+    isLoading,
+    dataSource
   };
 }

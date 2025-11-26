@@ -7,8 +7,8 @@ import { parseOptimizedRoute } from '../services/routeParserService';
 export function useRouteOptimizer(deliveries, handleApplySortOrder) {
   // Separate state for each tab
   const [routeTexts, setRouteTexts] = useState({
-    'orange-county': '',
-    'los-angeles': '',
+    'ky': '',
+    'mcm': '',
     'other': ''
   });
 
