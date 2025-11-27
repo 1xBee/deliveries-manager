@@ -1,35 +1,29 @@
 // ============================================
 // FILE: src/components/BulkActionsBar.js
+// Simplified component with extracted dialog
 // ============================================
 import React, { useState } from 'react';
-import { Alert, Button, Stack, Dialog, DialogTitle, DialogContent, DialogActions, TextField, Box } from '@mui/material';
+import { Alert, Button, Stack } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
 import SwapHorizIcon from '@mui/icons-material/SwapHoriz';
 import EditIcon from '@mui/icons-material/Edit';
 import { TABS } from '../constants/tabs';
+import BulkAddressDialog from './BulkAddressDialog';
 
 function BulkActionsBar({ selectedCount, selectedIds, currentTabId, onDelete, onMove, onBulkUpdateAddress }) {
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [newAddress, setNewAddress] = useState('');
   const otherTabs = TABS.filter(tab => tab.id !== currentTabId);
   const isEnabled = selectedCount > 0;
 
-  const handleBulkUpdate = () => {
-    if (newAddress.trim()) {
-      onBulkUpdateAddress(newAddress, selectedIds);
-      setNewAddress('');
-      setDialogOpen(false);
-    }
+  const handleBulkUpdate = (newAddress) => {
+    onBulkUpdateAddress(newAddress, selectedIds);
   };
 
   return (
     <>
       <Alert
-        // Always use "info" severity (blue)
         severity="info"
-        sx={{ mb: 2,
-          backgroundColor: '#fff'
-         }}
+        sx={{ mb: 2, backgroundColor: '#fff' }}
         action={
           <Stack direction="row" spacing={1}>
             <Button
@@ -37,7 +31,7 @@ function BulkActionsBar({ selectedCount, selectedIds, currentTabId, onDelete, on
               color="inherit"
               startIcon={<EditIcon />}
               onClick={() => setDialogOpen(true)}
-              disabled={!isEnabled} // Actions are disabled when no item is selected
+              disabled={!isEnabled}
             >
               Change Address
             </Button>
@@ -46,7 +40,7 @@ function BulkActionsBar({ selectedCount, selectedIds, currentTabId, onDelete, on
               color="inherit"
               startIcon={<DeleteIcon />}
               onClick={() => onDelete(selectedIds)}
-              disabled={!isEnabled} // Actions are disabled when no item is selected
+              disabled={!isEnabled}
             >
               Delete ({selectedCount})
             </Button>
@@ -57,7 +51,7 @@ function BulkActionsBar({ selectedCount, selectedIds, currentTabId, onDelete, on
                 color="inherit"
                 startIcon={<SwapHorizIcon />}
                 onClick={() => onMove(tab.id, selectedIds)}
-                disabled={!isEnabled} // Actions are disabled when no item is selected
+                disabled={!isEnabled}
               >
                 Move to {tab.label}
               </Button>
@@ -68,29 +62,12 @@ function BulkActionsBar({ selectedCount, selectedIds, currentTabId, onDelete, on
         {selectedCount} item{selectedCount !== 1 ? 's' : ''} selected
       </Alert>
 
-      <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>Change Address for Selected Items</DialogTitle>
-        <DialogContent>
-          <TextField
-            autoFocus
-            margin="dense"
-            label="New Address"
-            type="text"
-            fullWidth
-            variant="outlined"
-            value={newAddress}
-            onChange={(e) => setNewAddress(e.target.value)}
-            placeholder="Enter new address for all selected deliveries"
-            sx={{ mt: 2 }}
-          />
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setDialogOpen(false)}>Cancel</Button>
-          <Button onClick={handleBulkUpdate} variant="contained" disabled={!newAddress.trim()}>
-            Update {selectedCount} Item{selectedCount !== 1 ? 's' : ''}
-          </Button>
-        </DialogActions>
-      </Dialog>
+      <BulkAddressDialog
+        open={dialogOpen}
+        onClose={() => setDialogOpen(false)}
+        selectedCount={selectedCount}
+        onUpdate={handleBulkUpdate}
+      />
     </>
   );
 }

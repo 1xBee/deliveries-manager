@@ -1,5 +1,6 @@
 // ============================================
 // FILE: src/App.js
+// Added print dialog integration
 // ============================================
 import React, { useState } from 'react';
 import { Box } from '@mui/material';
@@ -9,6 +10,7 @@ import BulkActionsBar from './components/BulkActionsBar';
 import DeliveryDataGrid from './components/DeliveryDataGrid';
 import AddDeliveryDialog from './components/AddDeliveryDialog';
 import RouteOptimizerDialog from './components/RouteOptimizerDialog';
+import PrintDialog from './components/PrintDialog';
 import { useDeliveryData } from './hooks/useDeliveryData';
 import { TABS } from './constants/tabs';
 import { copyToClipboard, formatRouteForClipboard } from './services/clipboardService';
@@ -18,6 +20,7 @@ function App() {
   const [currentTab, setCurrentTab] = useState(0);
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [routeOptimizerOpen, setRouteOptimizerOpen] = useState(false);
+  const [printDialogOpen, setPrintDialogOpen] = useState(false);
   
   const {
     deliveries,
@@ -29,7 +32,7 @@ function App() {
     handleBulkUpdateAddress,
     handleUpdateRow,
     handleApplySortOrder,
-    setActiveTab  // ← NEW: For print feature to track active tab
+    setActiveTab
   } = useDeliveryData();
 
   const {
@@ -42,11 +45,10 @@ function App() {
   const currentTabData = deliveries[currentTabId] || [];
   const currentSelected = selectedIds[currentTabId] || [];
 
-  // ← NEW: Update activeTab when user switches tabs
   const handleTabChange = (newTabIndex) => {
     setCurrentTab(newTabIndex);
     const newTabId = TABS[newTabIndex].id;
-    setActiveTab(newTabId);  // Notify the hook which tab is active for print
+    setActiveTab(newTabId);
   };
 
   const handleCopyRoute = async () => {
@@ -60,11 +62,12 @@ function App() {
         onAdd={() => setAddDialogOpen(true)}
         onCopyRoute={handleCopyRoute}
         onOpenRouteOptimizer={() => setRouteOptimizerOpen(true)}
+        onOpenPrint={() => setPrintDialogOpen(true)}
       />
       
       <TabsNavigation
         currentTab={currentTab}
-        onTabChange={handleTabChange}  // ← CHANGED: Use our new handler
+        onTabChange={handleTabChange}
         deliveries={deliveries}
       />
 
@@ -110,6 +113,14 @@ function App() {
         onRouteTextChange={(text) => updateRouteText(currentTabId, text)}
         onApply={(text) => applyOptimizedRoute(currentTabId, text)}
         currentDeliveries={currentTabData}
+      />
+
+      <PrintDialog
+        open={printDialogOpen}
+        onClose={() => setPrintDialogOpen(false)}
+        currentTabId={currentTabId}
+        currentDeliveries={currentTabData}
+        selectedIds={currentSelected}
       />
     </Box>
   );

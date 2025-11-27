@@ -1,145 +1,255 @@
+/******/ (() => { // webpackBootstrap
+/******/ 	"use strict";
+
+;// ./extension-src/background/services/dataExtraction.js
 // ============================================
-// FILE: background.js
+// FILE: extension-src/background/services/dataExtraction.js
+// Handles data extraction from the deliveries page
 // ============================================
 
-// Listen for messages from popup and content scripts
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  console.log('Background received message:', message);
-
-  if (message.type === 'INJECT_AND_GRAB') {
-    // Popup requested data extraction
-    handleDataExtraction(sendResponse);
-    return true; // Keep channel open for async response
-  }
-
-  if (message.type === 'DATA_EXTRACTED') {
-    // Content script sent extracted data
-    handleExtractedData(message.data, sendResponse);
-    return true;
-  }
-
-  if (message.type === 'GET_CACHED_DATA') {
-    // UI page requesting cached data
-    getCachedData(sendResponse);
-    return true;
-  }
-
-  if (message.type === 'PRINT_ROUTE') {
-    // Popup requested print route
-    handlePrintRoute(message.data, sendResponse);
-    return true;
-  }
-});
-
-// Handle data extraction request from popup
+/**
+ * Handle data extraction request from popup
+ */
 async function handleDataExtraction(sendResponse) {
   try {
-    // Get the active tab
-    const tabs = await chrome.tabs.query({ 
-      active: true, 
-      currentWindow: true 
+    const tabs = await chrome.tabs.query({
+      active: true,
+      currentWindow: true
     });
-
     if (tabs.length === 0) {
-      sendResponse({ 
-        success: false, 
-        error: 'No active tab found.' 
+      sendResponse({
+        success: false,
+        error: 'No active tab found.'
       });
       return;
     }
-
     const targetTab = tabs[0];
 
-// Check if the active tab is the deliveries page and ensure no sub-paths exist
-    try {
-        const url = new URL(targetTab.url);
-        if (url.origin !== 'https://cm.chasunamallny.com' || url.pathname !== '/Deliveries') {
-            throw new Error('Path mismatch');
-        }
-    } catch (e) {
-        sendResponse({ 
-            success: false, 
-            error: 'Please navigate to the deliveries page (https://cm.chasunamallny.com/Deliveries) and try again.' 
-        });
-        return;
-    }
-
-    // Inject the content script if not already injected
-    await chrome.scripting.executeScript({
-      target: { tabId: targetTab.id },
-      files: ['content.js']
-    });
-
-    // Send message to content script to extract data
-    chrome.tabs.sendMessage(targetTab.id, { type: 'EXTRACT_DATA' }, (response) => {
-      if (chrome.runtime.lastError) {
-        sendResponse({ 
-          success: false, 
-          error: chrome.runtime.lastError.message 
-        });
-      } else {
-        sendResponse({ success: true });
-      }
-    });
-
-  } catch (error) {
-    console.error('Error in handleDataExtraction:', error);
-    sendResponse({ success: false, error: error.message });
-  }
-}
-
-// Handle extracted data from content script
-async function handleExtractedData(data, sendResponse) {
-  try {
-    // Cache the data
-    await chrome.storage.local.set({ deliveryData: data });
-    
-    console.log('Data cached successfully:', data);
-
-    // Notify all open UI pages
-    const uiTabs = await chrome.tabs.query({ url: chrome.runtime.getURL('ui.html') });
-    uiTabs.forEach(tab => {
-      chrome.tabs.sendMessage(tab.id, {
-        type: 'DATA_UPDATED',
-        data: data
-      });
-    });
-
-    sendResponse({ success: true });
-  } catch (error) {
-    console.error('Error handling extracted data:', error);
-    sendResponse({ success: false, error: error.message });
-  }
-}
-
-// Get cached data
-async function getCachedData(sendResponse) {
-  try {
-    const result = await chrome.storage.local.get('deliveryData');
-    sendResponse({ 
-      success: true, 
-      data: result.deliveryData || null 
-    });
-  } catch (error) {
-    console.error('Error getting cached data:', error);
-    sendResponse({ success: false, error: error.message });
-  }
-}
-
-// Handle print route request
-async function handlePrintRoute(data, sendResponse) {
-  try {
-    const { tabName, deliveryIds } = data;
-
-    if (!deliveryIds || deliveryIds.length === 0) {
-      sendResponse({ 
-        success: false, 
-        error: 'No deliveries to print' 
+    // Validate URL
+    if (!isValidDeliveriesPage(targetTab.url)) {
+      sendResponse({
+        success: false,
+        error: 'Please navigate to the deliveries page (https://cm.chasunamallny.com/Deliveries) and try again.'
       });
       return;
     }
 
-    // Open the cm.chasunamallny.com page in a new window
+    // Inject content script
+    await chrome.scripting.executeScript({
+      target: {
+        tabId: targetTab.id
+      },
+      files: ['content/content.js']
+    });
+
+    // Send extraction request
+    chrome.tabs.sendMessage(targetTab.id, {
+      type: 'EXTRACT_DATA'
+    }, response => {
+      if (chrome.runtime.lastError) {
+        sendResponse({
+          success: false,
+          error: chrome.runtime.lastError.message
+        });
+      } else {
+        sendResponse({
+          success: true
+        });
+      }
+    });
+  } catch (error) {
+    console.error('Error in handleDataExtraction:', error);
+    sendResponse({
+      success: false,
+      error: error.message
+    });
+  }
+}
+
+/**
+ * Validate if URL is the correct deliveries page
+ */
+function isValidDeliveriesPage(url) {
+  try {
+    const urlObj = new URL(url);
+    return urlObj.origin === 'https://cm.chasunamallny.com' && urlObj.pathname === '/Deliveries';
+  } catch (e) {
+    return false;
+  }
+}
+;// ./extension-src/background/services/dataStorage.js
+// ============================================
+// FILE: extension-src/background/services/dataStorage.js
+// Handles Chrome storage operations for extracted data
+// ============================================
+
+const STORAGE_KEY = 'delivery_route_data';
+
+/**
+ * Save data to chrome.storage.local
+ * Called when React app sends SAVE_DATA message
+ * CRITICAL: Only broadcasts on SUCCESS to prevent loops on failure
+ */
+async function saveData(data, sendResponse) {
+  try {
+    // Store in chrome.storage.local
+    await chrome.storage.local.set({
+      [STORAGE_KEY]: data
+    });
+    console.log('✅ Background saved data to chrome.storage.local:', data);
+
+    // ✅ ONLY notify on success!
+    await notifyUIPages(data);
+    sendResponse({
+      success: true
+    });
+  } catch (error) {
+    console.error('❌ Error saving data:', error);
+
+    // ❌ DON'T broadcast on failure - prevents loop!
+    // Just tell the sender it failed
+    sendResponse({
+      success: false,
+      error: error.message
+    });
+  }
+}
+
+/**
+ * Handle extracted data from content script
+ * (When user clicks "Grab Data" in popup)
+ */
+async function handleExtractedData(data, sendResponse) {
+  try {
+    const storageData = {
+      version: 1,
+      timestamp: new Date().toISOString(),
+      deliveries: data
+    };
+
+    // Save to chrome.storage.local
+    await chrome.storage.local.set({
+      [STORAGE_KEY]: storageData
+    });
+    console.log('✅ Background cached extracted data:', storageData);
+
+    // Notify all open UI pages
+    await notifyUIPages(storageData);
+    sendResponse({
+      success: true
+    });
+  } catch (error) {
+    console.error('❌ Error handling extracted data:', error);
+    sendResponse({
+      success: false,
+      error: error.message
+    });
+  }
+}
+
+/**
+ * Get cached data from chrome.storage.local
+ */
+async function getCachedData(sendResponse) {
+  try {
+    const result = await chrome.storage.local.get(STORAGE_KEY);
+    const data = result[STORAGE_KEY] || null;
+    console.log('📥 Background retrieved cached data:', data);
+    sendResponse({
+      success: true,
+      data: data
+    });
+  } catch (error) {
+    console.error('❌ Error getting cached data:', error);
+    sendResponse({
+      success: false,
+      error: error.message
+    });
+  }
+}
+
+/**
+ * Clear data from chrome.storage.local
+ */
+async function clearData(sendResponse) {
+  try {
+    await chrome.storage.local.remove(STORAGE_KEY);
+    console.log('🗑️ Background cleared storage');
+
+    // Create empty data structure
+    const emptyData = {
+      version: 1,
+      timestamp: new Date().toISOString(),
+      deliveries: {
+        'ky': [],
+        'mcm': [],
+        'other': []
+      }
+    };
+
+    // Notify all UI tabs that data was cleared
+    await notifyUIPages(emptyData);
+    sendResponse({
+      success: true
+    });
+  } catch (error) {
+    console.error('❌ Error clearing data:', error);
+    sendResponse({
+      success: false,
+      error: error.message
+    });
+  }
+}
+
+/**
+ * Notify all open UI tabs about data update
+ * This sends DATA_UPDATED message which React will receive
+ * ONLY called after successful operations!
+ */
+async function notifyUIPages(data) {
+  try {
+    const uiTabs = await chrome.tabs.query({
+      url: chrome.runtime.getURL('ui.html')
+    });
+    console.log("\uD83D\uDCE2 Notifying ".concat(uiTabs.length, " UI tab(s) about data update"));
+    for (const tab of uiTabs) {
+      try {
+        await chrome.tabs.sendMessage(tab.id, {
+          type: 'DATA_UPDATED',
+          data: data
+        });
+      } catch (err) {
+        console.warn("Failed to notify tab ".concat(tab.id, ":"), err);
+      }
+    }
+  } catch (error) {
+    console.error('Error notifying UI pages:', error);
+  }
+}
+;// ./extension-src/background/services/printHandler.js
+// ============================================
+// FILE: extension-src/background/services/printHandler.js
+// Handles print window creation and management
+// ============================================
+
+/**
+ * Handle print route request
+ */
+async function handlePrintRoute(data, sendResponse) {
+  try {
+    const {
+      tabName,
+      deliveryIds
+    } = data;
+    if (!deliveryIds || deliveryIds.length === 0) {
+      sendResponse({
+        success: false,
+        error: 'No deliveries to print'
+      });
+      return;
+    }
+
+    // Open print window
     const printWindow = await chrome.windows.create({
       url: 'https://cm.chasunamallny.com/',
       type: 'popup',
@@ -147,52 +257,125 @@ async function handlePrintRoute(data, sendResponse) {
       height: 600
     });
 
-    // Wait for the tab to be ready, then inject the print script
-    const checkTab = setInterval(async () => {
-      const tabs = await chrome.tabs.query({ windowId: printWindow.id });
-      if (tabs.length > 0) {
-        const tab = tabs[0];
-        if (tab.status === 'complete') {
-          clearInterval(checkTab);
-          
-          try {
-            // Inject the print content script
-            await chrome.scripting.executeScript({
-              target: { tabId: tab.id },
-              files: ['print-content.js']
-            });
-
-            // Wait a bit for script to load
-            setTimeout(() => {
-              // Send print data to the content script
-              chrome.tabs.sendMessage(tab.id, {
-                type: 'INIT_PRINT',
-                data: {
-                  tabName: tabName,
-                  deliveryIds: deliveryIds
-                }
-              });
-            }, 100);
-
-          } catch (error) {
-            console.error('Error injecting print script:', error);
-          }
-        }
-      }
-    }, 100);
-
-    // Clear interval after 10 seconds to prevent infinite loop
-    setTimeout(() => clearInterval(checkTab), 10000);
-
-    sendResponse({ success: true });
-
+    // Wait for tab to load, then inject print script
+    await waitForTabAndInject(printWindow.id, tabName, deliveryIds);
+    sendResponse({
+      success: true
+    });
   } catch (error) {
     console.error('Error in handlePrintRoute:', error);
-    sendResponse({ success: false, error: error.message });
+    sendResponse({
+      success: false,
+      error: error.message
+    });
   }
 }
 
-// Listen for extension icon click to open UI
-chrome.action.onClicked.addListener((tab) => {
-  chrome.tabs.create({ url: chrome.runtime.getURL('ui.html') });
+/**
+ * Wait for tab to be ready and inject print script
+ */
+async function waitForTabAndInject(windowId, tabName, deliveryIds) {
+  const checkInterval = setInterval(async () => {
+    const tabs = await chrome.tabs.query({
+      windowId
+    });
+    if (tabs.length > 0 && tabs[0].status === 'complete') {
+      clearInterval(checkInterval);
+      try {
+        // Inject print content script
+        await chrome.scripting.executeScript({
+          target: {
+            tabId: tabs[0].id
+          },
+          files: ['content/print-content.js']
+        });
+
+        // Wait for script to load
+        setTimeout(() => {
+          chrome.tabs.sendMessage(tabs[0].id, {
+            type: 'INIT_PRINT',
+            data: {
+              tabName,
+              deliveryIds
+            }
+          });
+        }, 100);
+      } catch (error) {
+        console.error('Error injecting print script:', error);
+      }
+    }
+  }, 100);
+
+  // Clear interval after timeout
+  setTimeout(() => clearInterval(checkInterval), 10000);
+}
+;// ./extension-src/background/utils/messageRouter.js
+// ============================================
+// FILE: extension-src/background/utils/messageRouter.js
+// Routes messages to appropriate handlers
+// UPDATED: Added SAVE_DATA and CLEAR_DATA handlers
+// ============================================
+
+
+
+
+/**
+ * Main message router for background script
+ */
+function setupMessageListener() {
+  chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    console.log('📨 Background received message:', message.type);
+    switch (message.type) {
+      // ===== DATA EXTRACTION (from website) =====
+      case 'INJECT_AND_GRAB':
+        handleDataExtraction(sendResponse);
+        return true;
+      case 'DATA_EXTRACTED':
+        handleExtractedData(message.data, sendResponse);
+        return true;
+
+      // ===== DATA STORAGE (from React UI) =====
+      case 'SAVE_DATA':
+        saveData(message.data, sendResponse);
+        return true;
+      case 'GET_CACHED_DATA':
+        getCachedData(sendResponse);
+        return true;
+      case 'CLEAR_DATA':
+        clearData(sendResponse);
+        return true;
+
+      // ===== PRINTING =====
+      case 'PRINT_ROUTE':
+        handlePrintRoute(message.data, sendResponse);
+        return true;
+      default:
+        console.warn('⚠️ Unknown message type:', message.type);
+        sendResponse({
+          success: false,
+          error: 'Unknown message type'
+        });
+        return false;
+    }
+  });
+  console.log('✅ Message router initialized');
+}
+;// ./extension-src/background/background.js
+// ============================================
+// FILE: extension-src/background/background.js
+// Main background script - now just a router
+// ============================================
+
+
+// Setup message routing
+setupMessageListener();
+
+// Handle extension icon click
+chrome.action.onClicked.addListener(tab => {
+  chrome.tabs.create({
+    url: chrome.runtime.getURL('ui.html')
+  });
 });
+console.log('Delivery Route Optimizer background script loaded');
+/******/ })()
+;

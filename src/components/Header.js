@@ -1,13 +1,15 @@
 // ============================================
 // FILE: src/components/Header.js
+// Added print button
 // ============================================
 import React, { useState } from 'react';
 import { Toolbar, Typography, Button, Paper, Stack, Snackbar, Alert } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import RouteIcon from '@mui/icons-material/Route';
+import PrintIcon from '@mui/icons-material/Print';
 
-function Header({ onAdd, onCopyRoute, onOpenRouteOptimizer }) {
+function Header({ onAdd, onCopyRoute, onOpenRouteOptimizer, onOpenPrint }) {
   const [snackbar, setSnackbar] = useState({ open: false, message: '' });
 
   const handleCopyRoute = async () => {
@@ -27,6 +29,15 @@ function Header({ onAdd, onCopyRoute, onOpenRouteOptimizer }) {
             Delivery Route Manager
           </Typography>
           <Stack direction="row" spacing={1}>
+            <Button
+              variant="outlined"
+              startIcon={<PrintIcon />}
+              onClick={onOpenPrint}
+              size="small"
+              color="success"
+            >
+              Print
+            </Button>
             <Button
               variant="outlined"
               startIcon={<ContentCopyIcon />}

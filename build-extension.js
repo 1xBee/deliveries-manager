@@ -1,5 +1,6 @@
 // ============================================
-// FILE: build-extension.js
+// FILE: build-extension.js (UPDATED)
+// Builds extension with organized folder structure
 // ============================================
 const fs = require('fs-extra');
 const path = require('path');
@@ -19,9 +20,8 @@ if (fs.existsSync(RELEASE_DIR)) {
 fs.mkdirSync(RELEASE_DIR);
 
 // Step 2: Build React app
-console.log('⚛️  Building React app...');
+console.log('⚛️  Building React app...');
 try {
-  // Assuming 'npm run build' generates the files in the 'build' directory
   execSync('npm run build', { stdio: 'inherit' });
   console.log('✅ React app built successfully\n');
 } catch (error) {
@@ -29,58 +29,65 @@ try {
   process.exit(1);
 }
 
-// Step 3: Copy extension files
-console.log('📋 Copying extension files...');
-const extensionFiles = [
-  'extension/manifest.json',
-  'extension/background.js',
-  'extension/content.js',
-  'extension/popup.html',
-  'extension/popup.js',
-  'extension/print-content.js'
-];
-
-extensionFiles.forEach(file => {
-  const filename = path.basename(file);
-  fs.copySync(file, path.join(RELEASE_DIR, filename));
-  console.log(`  ✓ ${filename}`);
+// Step 3: Create folder structure
+console.log('📋 Creating folder structure...');
+const folders = ['popup', 'background', 'content', 'icons'];
+folders.forEach(folder => {
+  fs.mkdirSync(path.join(RELEASE_DIR, folder));
+  console.log(`  ✓ ${folder}/`);
 });
 
-// Step 4: Copy built React app as ui.html
+// Step 4: Copy extension files to organized folders
+console.log('\n📋 Copying extension files...');
+
+// Manifest (root)
+fs.copySync('extension/manifest.json', path.join(RELEASE_DIR, 'manifest.json'));
+console.log('  ✓ manifest.json');
+
+// Popup files
+fs.copySync('extension/popup.html', path.join(RELEASE_DIR, 'popup/popup.html'));
+fs.copySync('extension/popup.js', path.join(RELEASE_DIR, 'popup/popup.js'));
+console.log('  ✓ popup/popup.html');
+console.log('  ✓ popup/popup.js');
+
+// Background files
+fs.copySync('extension/background.js', path.join(RELEASE_DIR, 'background/background.js'));
+console.log('  ✓ background/background.js');
+
+// Content files
+fs.copySync('extension/content.js', path.join(RELEASE_DIR, 'content/content.js'));
+fs.copySync('extension/print-content.js', path.join(RELEASE_DIR, 'content/print-content.js'));
+console.log('  ✓ content/content.js');
+console.log('  ✓ content/print-content.js');
+
+// Step 5: Copy built React app as ui.html
 console.log('\n📦 Copying React build files...');
-
-// Copy the main HTML file as ui.html (This is the full dashboard page)
 fs.copySync('build/index.html', path.join(RELEASE_DIR, 'ui.html'));
-console.log('  ✓ ui.html');
+console.log('  ✓ ui.html');
 
-// Copy static folder (JS, CSS, etc.)
+// Copy static folder
 if (fs.existsSync('build/static')) {
   fs.copySync('build/static', path.join(RELEASE_DIR, 'static'));
-  console.log('  ✓ static/ (JS, CSS, media)');
+  console.log('  ✓ static/ (JS, CSS, media)');
 }
 
-// Step 5: Create icons directory
-console.log('\n🎨 Creating icons directory...');
-const iconsDir = path.join(RELEASE_DIR, 'icons');
-fs.mkdirSync(iconsDir);
-
-// Copy actual icon files or create placeholders
+// Step 6: Copy/create icons
+console.log('\n🎨 Handling icons...');
 const iconSizes = [16, 48, 128];
 iconSizes.forEach(size => {
   const iconPath = path.join('public', `icon${size}.png`);
-  const targetPath = path.join(iconsDir, `icon${size}.png`);
+  const targetPath = path.join(RELEASE_DIR, 'icons', `icon${size}.png`);
   
   if (fs.existsSync(iconPath)) {
     fs.copySync(iconPath, targetPath);
-    console.log(`  ✓ icon${size}.png`);
+    console.log(`  ✓ icons/icon${size}.png`);
   } else {
-    // Create a text file as placeholder if missing
     fs.writeFileSync(targetPath + '.txt', `Placeholder for ${size}x${size} icon`);
-    console.log(`  ⚠️  icon${size}.png missing (placeholder created)`);
+    console.log(`  ⚠️  icons/icon${size}.png missing (placeholder created)`);
   }
 });
 
-// Step 6: Create ZIP file and perform cleanup
+// Step 7: Create ZIP file
 console.log('\n📦 Creating ZIP archive...');
 const output = fs.createWriteStream(ZIP_NAME);
 const archive = archiver('zip', { zlib: { level: 9 } });
@@ -89,17 +96,25 @@ output.on('close', () => {
   const sizeInMB = (archive.pointer() / 1024 / 1024).toFixed(2);
   console.log(`✅ ZIP created: ${ZIP_NAME} (${sizeInMB} MB)`);
 
-  // Cleanup: Remove the intermediate release directory
   console.log('\n🧹 Cleaning up intermediate release directory...');
   fs.removeSync(RELEASE_DIR);
   console.log(`✅ Directory ${RELEASE_DIR} removed.`);
 
   console.log('\n🎉 Extension build complete!');
   console.log(`\n📍 File location: ./${ZIP_NAME}`);
+  console.log(`\n📁 Organized structure:`);
+  console.log(`   ├── manifest.json`);
+  console.log(`   ├── popup/`);
+  console.log(`   ├── background/`);
+  console.log(`   ├── content/`);
+  console.log(`   ├── icons/`);
+  console.log(`   ├── ui.html`);
+  console.log(`   └── static/`);
   console.log(`\n💡 To install:`);
-  console.log(`   1. Open Chrome and go to chrome://extensions/`);
-  console.log(`   2. Enable "Developer mode"`);
-  console.log(`   3. Click "Load unpacked" (for testing the unzipped folder before cleanup) OR Drag and drop "${ZIP_NAME}" onto the extensions page.`);
+  console.log(`   1. Extract ${ZIP_NAME}`);
+  console.log(`   2. Open Chrome: chrome://extensions/`);
+  console.log(`   3. Enable "Developer mode"`);
+  console.log(`   4. Click "Load unpacked" and select extracted folder`);
 });
 
 archive.on('error', (err) => {

@@ -40,7 +40,7 @@ function DeliveryDataGrid({
     {
       field: 'sortOrder',
       headerName: 'Sort Order',
-      width: 100,
+      width: 150,
       type: 'number',
       editable: false,
       hide: true
@@ -92,7 +92,7 @@ function DeliveryDataGrid({
           pagination: { paginationModel: { pageSize: 10 } },
           columns: {
             columnVisibilityModel: {
-              sortOrder: false
+              sortOrder: true
             }
           }
         }}

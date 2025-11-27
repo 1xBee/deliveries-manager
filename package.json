@@ -17,12 +17,19 @@
     "build": "react-scripts build",
     "test": "react-scripts test",
     "eject": "react-scripts eject",
-    "build:extension": "node build-extension.js"
+    "build:extension": "webpack --config webpack.config.js",
+    "watch:extension": "webpack --watch --config webpack.config.js"
   },
   "devDependencies": {
+    "@babel/core": "^7.28.5",
+    "@babel/preset-env": "^7.28.5",
     "archiver": "^7.0.1",
+    "babel-loader": "^10.0.0",
+    "copy-webpack-plugin": "^13.0.1",
     "fs-extra": "^11.3.2",
-    "react-scripts": "5.0.1"
+    "react-scripts": "5.0.1",
+    "webpack": "^5.103.0",
+    "webpack-cli": "^6.0.1"
   },
   "eslintConfig": {
     "extends": [
