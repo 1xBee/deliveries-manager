@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Delivery Route Optimizer",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "Optimize delivery routes by extracting and organizing delivery data",
   "permissions": [
     "activeTab",

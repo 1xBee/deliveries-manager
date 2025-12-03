@@ -1,22 +1,18 @@
 // ============================================
 // FILE: extension-src/content/print-content.js
-// This content script runs on https://cm.chasunamallny.com/
-// and handles the merge print functionality
+// CLEAN: MutationObserver approach
 // ============================================
 
-let loadedCount = 0;
 let totalCount = 0;
-let allIframesReady = false;
+let readyInvoices = new Set(); // Track which invoices are ready
 
-// Listen for initialization message from background
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === 'INIT_PRINT') {
     const { tabName, deliveryIds } = message.data;
+    totalCount = deliveryIds.length;
     
-    // Clear the page and set it up for printing
     clearAndSetupPage(tabName);
-    
-    // Create iframes for each delivery
+    setupCustomEventListener();
     createInvoiceIframes(deliveryIds);
     
     sendResponse({ success: true });
@@ -24,13 +20,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 });
 
 function clearAndSetupPage(tabName) {
-  // Clear all content
   document.body.innerHTML = '';
-  
-  // Update title
   document.title = `${tabName.toUpperCase()} - Merge Print`;
   
-  // Add styles
   const style = document.createElement('style');
   style.textContent = `
     body {
@@ -113,18 +105,16 @@ function clearAndSetupPage(tabName) {
   `;
   document.head.appendChild(style);
   
-  // Add loading UI
   const loadingDiv = document.createElement('div');
   loadingDiv.id = 'loading';
   loadingDiv.className = 'loading';
   loadingDiv.innerHTML = `
     <h1>Preparing Merge Print</h1>
     <div class="spinner"></div>
-    <p id="status">Initializing...</p>
+    <p id="status">Loading 0 of ${totalCount} invoices...</p>
   `;
   document.body.appendChild(loadingDiv);
   
-  // Add iframe container
   const iframeContainer = document.createElement('div');
   iframeContainer.id = 'iframeContainer';
   iframeContainer.className = 'iframe-container';
@@ -133,118 +123,108 @@ function clearAndSetupPage(tabName) {
 
 function createInvoiceIframes(deliveryIds) {
   const iframeContainer = document.getElementById('iframeContainer');
-  const statusEl = document.getElementById('status');
   
-  totalCount = deliveryIds.length;
-  loadedCount = 0;
-  
-  statusEl.textContent = `Loading ${deliveryIds.length} invoices...`;
-
   deliveryIds.forEach((id, index) => {
     const iframe = document.createElement('iframe');
-    
-    // Use relative path - we're on the same domain!
     iframe.src = `/Deliveries/${id}/Invoice?hidePrintFirstPageOnly=false&hideUnavailable=true&hideSkipReturnPolicy=true&hideBackordered=true&hideDeliverable=true`;
-    
-    // Set iframe attributes
     iframe.id = `invoice-${id}`;
     iframe.dataset.deliveryId = id;
     iframe.dataset.index = index;
-    
-    // Add load event listener
-    iframe.addEventListener('load', () => handleIframeLoad(iframe));
-    
-    // Append to container
+    iframe.addEventListener('load', () => setupMutationObserver(iframe));
     iframeContainer.appendChild(iframe);
   });
 }
 
-function handleIframeLoad(iframe) {
+function setupMutationObserver(iframe) {
   const deliveryId = iframe.dataset.deliveryId;
-  const statusEl = document.getElementById('status');
   
-  console.log(`Iframe loaded for delivery ${deliveryId}`);
+  try {
+    const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+    const rootApp = iframeDoc.querySelector('#rootApp');
+    
+    if (!rootApp) {
+      console.error(`#rootApp not found for invoice ${deliveryId}`);
+      return;
+    }
+    
+    // Check if #invDetails already exists
+    if (iframeDoc.querySelector('#invDetails')) {
+      console.log(`✅ #invDetails already present for invoice ${deliveryId}`);
+      fireInvoiceReadyEvent(iframe, deliveryId);
+      return;
+    }
+    
+    // Create MutationObserver to watch for #invDetails
+    const observer = new MutationObserver((mutations, obs) => {
+      const invDetails = iframeDoc.querySelector('#invDetails');
+      
+      if (invDetails) {
+        console.log(`✅ #invDetails found for invoice ${deliveryId}`);
+        obs.disconnect(); // Stop observing
+        fireInvoiceReadyEvent(iframe, deliveryId);
+      }
+    });
+    
+    // Start observing
+    observer.observe(rootApp, {
+      childList: true,
+      subtree: true
+    });
+    
+    console.log(`👀 Watching for #invDetails in invoice ${deliveryId}`);
+    
+  } catch (error) {
+    console.error(`Error setting up observer for invoice ${deliveryId}:`, error);
+  }
+}
 
-  // Wait for React components to render inside iframe
-  waitForIframeContent(iframe).then(() => {
-    loadedCount++;
-    statusEl.textContent = `Loaded ${loadedCount} of ${totalCount} invoices...`;
+function fireInvoiceReadyEvent(iframe, deliveryId) {
+  // Fire custom event on the main document
+  const event = new CustomEvent('invoiceReady', {
+    detail: { invoiceId: deliveryId }
+  });
+  document.dispatchEvent(event);
+}
 
-    console.log(`Iframe ready for delivery ${deliveryId} (${loadedCount}/${totalCount})`);
-
-    // Check if all iframes are loaded
-    if (loadedCount === totalCount && !allIframesReady) {
-      allIframesReady = true;
-      handleAllIframesReady();
+function setupCustomEventListener() {
+  document.addEventListener('invoiceReady', (event) => {
+    const invoiceId = event.detail.invoiceId;
+    
+    // Add to set (automatically avoids duplicates)
+    readyInvoices.add(invoiceId);
+    
+    console.log(`📦 Invoice ${invoiceId} ready (${readyInvoices.size}/${totalCount})`);
+    
+    // Update status
+    const statusEl = document.getElementById('status');
+    statusEl.textContent = `Loading ${readyInvoices.size} of ${totalCount} invoices...`;
+    
+    // Check if all are done
+    if (readyInvoices.size === totalCount) {
+      console.log('🎉 All invoices ready!');
+      handleAllReady();
     }
   });
 }
 
-async function waitForIframeContent(iframe) {
-  const maxAttempts = 50; // 5 seconds max
-  const checkInterval = 100; // Check every 100ms
-
-  for (let attempt = 0; attempt < maxAttempts; attempt++) {
-    try {
-      const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
-      
-      // Check if body exists and has content
-      if (iframeDoc && iframeDoc.body) {
-        const bodyContent = iframeDoc.body.innerHTML;
-        
-        // Check if there's substantial content (not just loading spinner)
-        const hasContent = bodyContent.length > 1000 || 
-                          iframeDoc.querySelector('.invoice') ||
-                          iframeDoc.querySelector('[class*="invoice"]') ||
-                          iframeDoc.querySelector('table');
-        
-        if (hasContent) {
-          // Wait a bit more to ensure React has finished rendering
-          await sleep(300);
-          return;
-        }
-      }
-    } catch (e) {
-      // Cross-origin or other error, wait and retry
-      console.log(`Attempt ${attempt + 1}: Waiting for iframe content...`);
-    }
-
-    await sleep(checkInterval);
-  }
-
-  // Timeout reached, proceed anyway
-  console.warn(`Timeout waiting for iframe ${iframe.dataset.deliveryId}`);
-}
-
-function sleep(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
-
-async function handleAllIframesReady() {
+function handleAllReady() {
   const loadingEl = document.getElementById('loading');
   const statusEl = document.getElementById('status');
   
-  console.log('All iframes ready!');
+  statusEl.textContent = 'All invoices loaded! Printing...';
   
-  statusEl.textContent = 'All invoices loaded! Preparing to print...';
-  
-  // Wait a moment for final rendering
-  await sleep(500);
-  
-  // Hide loading screen
-  loadingEl.style.display = 'none';
-  
-  // Wait another moment for layout
-  await sleep(300);
-  
-  // Trigger print dialog
-  console.log('Triggering print...');
-  window.print();
-  
-  // Optional: Close window after print
-  window.addEventListener('afterprint', () => {
-    setTimeout(() => {
-      window.close();
-    }, 500);
-  });
+  // 100ms safety interval, then print
+  setTimeout(() => {
+    loadingEl.style.display = 'none';
+    
+    console.log('🖨️ Triggering print...');
+    window.print();
+    
+    // Close window after print
+    window.addEventListener('afterprint', () => {
+      setTimeout(() => {
+        window.close();
+      }, 500);
+    });
+  }, 100);
 }

@@ -18,7 +18,10 @@
     "test": "react-scripts test",
     "eject": "react-scripts eject",
     "build:extension": "webpack --config webpack.config.js",
-    "watch:extension": "webpack --watch --config webpack.config.js"
+    "watch:extension": "webpack --watch --config webpack.config.js",
+    "build:ext": "node build-extension.js extension",
+    "build:react": "node build-extension.js react",
+    "build:all": "node build-extension.js all"
   },
   "devDependencies": {
     "@babel/core": "^7.28.5",
